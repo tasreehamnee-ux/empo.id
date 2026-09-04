@@ -1,0 +1,27 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Heavy Executables & Archives & DBs
+*.exe
+*.rar
+*.zip
+*.db
+*.sqlite
+temp_rar/
+temp_unzip/
+
+# IDE files
+.idea/
+.vscode/
+
+# Backups
+backups/

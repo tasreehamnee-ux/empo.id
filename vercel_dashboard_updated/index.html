@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة التصاريح الأمنية - لوحة المتابعة</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        .white-card { background:#fff; border:1px solid #f1f5f9; border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.05); transition:all .2s; }
+        .white-card:hover { box-shadow:0 4px 6px rgba(0,0,0,.05); border-color:#e2e8f0; }
+        .custom-scroll::-webkit-scrollbar { width:6px; height:6px; }
+        .custom-scroll::-webkit-scrollbar-track { background:#f8fafc; }
+        .custom-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+        #toast { visibility:hidden; min-width:260px; text-align:center; border-radius:12px; position:fixed; z-index:200; right:20px; bottom:30px; font-size:14px; box-shadow:0 10px 15px rgba(0,0,0,.1); }
+        #toast.show { visibility:visible; animation:fadein .5s, fadeout .5s 2.5s; }
+        @keyframes fadein { from{bottom:0;opacity:0} to{bottom:30px;opacity:1} }
+        @keyframes fadeout { from{bottom:30px;opacity:1} to{bottom:0;opacity:0} }
+        tr.highlight { background:#eff6ff !important; }
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-btn.active { border-bottom: 3px solid #3b82f6; color: #1e40af; background: #eff6ff; }
+        .tab-btn:not(.active):hover { background: #f1f5f9; }
+        .print-only { display: none !important; }
+
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print, header, nav, button, select, input, #live-clock, #lastUpdateBadge, #stats-cards, .tabs-container, #details-modal, #ministry-details-modal, #toast, .action-buttons {
+                display: none !important;
+            }
+            .print-only {
+                display: table-cell !important;
+            }
+            main, .white-card {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            table {
+                width: 100% !important;
+                max-width: 100% !important;
+                border-collapse: collapse !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            th, td {
+                border: 1px solid #cbd5e1 !important;
+                padding: 2.5px 4px !important;
+                font-size: 5.8pt !important;
+                color: black !important;
+                background: white !important;
+                white-space: nowrap !important;
+            }
+            th:last-child, td:last-child {
+                display: none !important;
+            }
+            @page {
+                size: landscape;
+            }
+            
+            /* ID Card Print Styles */
+            body.printing-cards {
+                background: white;
+            }
+            body.printing-cards > *:not(#id-cards-container) {
+                display: none !important;
+            }
+            body.printing-cards #id-cards-container {
+                display: flex !important;
+                flex-direction: column;
+                gap: 20px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-cairo min-h-screen text-right" dir="rtl">
+
+    <!-- Passwords Modal -->
+    <div id="passwords-modal" class="fixed inset-0 z-50 hidden flex justify-center items-center p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closePasswordsModal()"></div>
+        <div class="relative bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl z-10 p-6">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-blue-600"></i>
+                    رموز الدخول والآدمن المتزامنة
+                </h3>
+                <button onclick="closePasswordsModal()" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Global Code -->
+                <div class="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                    <div class="text-xs font-bold text-slate-500">رمز الدخول العام للتطبيق (Access Code):</div>
+                    <div class="text-lg font-bold text-blue-700 mt-1 select-all" id="synced-global-code">جاري التحميل...</div>
+                </div>
+                
+                <!-- Users List -->
+                <div>
+                    <div class="text-xs font-bold text-slate-600 mb-2">حسابات الآدمن والآدمن المساعد:</div>
+                    <div class="overflow-hidden border border-slate-100 rounded-xl">
+                        <table class="w-full text-right text-xs">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 font-bold border-b border-slate-150">
+                                    <th class="px-3 py-2">المستخدم</th>
+                                    <th class="px-3 py-2">رمز الدخول</th>
+                                    <th class="px-3 py-2">الصلاحية</th>
+                                </tr>
+                            </thead>
+                            <tbody id="synced-users-tbody" class="divide-y divide-slate-100">
+                                <tr>
+                                    <td colspan="3" class="text-center py-4 text-slate-400">جاري تحميل الحسابات من السحابة...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+        <div class="flex items-center gap-3">
+            <div id="secretLogo" class="w-14 h-14 overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-white flex items-center justify-center shrink-0 cursor-default">
+                <img src="logo.jpg" onerror="this.onerror=null; this.style.display='none';" class="w-full h-full object-contain">
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-slate-800">بوابة التصاريح الأمنية</h1>
+                <p class="text-sm text-slate-500 mt-0.5">لوحة المتابعة والمطابقة — العدد الكلي: <span id="total-count" class="font-bold text-blue-600">0</span></p>
+            </div>
+        </div>
+        <div class="flex items-center flex-wrap gap-2 w-full md:w-auto">
+            <div class="bg-white border border-slate-100 rounded-xl px-4 py-2 flex items-center gap-2 text-sm text-slate-600 shadow-sm">
+                <i class="fa-regular fa-clock text-blue-600"></i>
+                <span id="live-clock">--:--:--</span>
+            </div>
+            <div id="sync-badge" class="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5">
+                <i class="fa-solid fa-spinner fa-spin text-amber-500"></i>
+                جاري الاتصال...
+            </div>
+            <div class="bg-white border border-slate-100 rounded-xl px-3 py-2 flex items-center gap-1.5 text-xs text-slate-500 shadow-sm">
+                <i class="fa-solid fa-database text-slate-400"></i>
+                <span id="lastUpdateBadge">في انتظار البيانات...</span>
+            </div>
+            
+        </div>
+    </header>
+
+
+
+    <!-- Tab 1: Main Employees Table -->
+    <main id="section-employees" class="white-card p-6 bg-white">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-5">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-table-list text-blue-600"></i>
+                موظفي شعبة المتابعة
+            </h3>
+            <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                <input type="text" id="search-input" onkeyup="filterEmployees()" placeholder=" ابحث بالاسم، الرقم، الشعبة، العنوان..."
+                    class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-500 w-full sm:w-72 placeholder-slate-400 text-right font-semibold shadow-inner" dir="rtl">
+                <select id="shift-filter" onchange="filterEmployees()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm font-semibold">
+                    <option value="">صباحي / مسائي </option>
+                    <option value="صباحي">صباحي</option>
+                    <option value="مسائي">مسائي</option>
+                    <option value="كلاهما">كلاهما</option>
+                </select>
+
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2">
+                        <i class="fa-solid fa-file-excel"></i> Excel
+                    </button>
+                    <button onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2">
+                        <i class="fa-solid fa-file-pdf"></i> PDF
+                    </button>
+                    <button onclick="printCards()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2">
+                        <i class="fa-solid fa-id-card"></i> بطاقات
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto custom-scroll border border-slate-100 rounded-xl shadow-sm">
+            <table class="w-full text-right text-sm">
+                <thead>
+                    <tr class="text-slate-600 font-bold border-b border-slate-200 bg-slate-50/70 text-xs">
+                        <th class="px-4 py-3.5">ت</th>
+                        <th class="px-4 py-3.5">رقم الهوية</th>
+                        <th class="px-4 py-3.5">اسم الموظف</th>
+                        <th class="px-4 py-3.5">العنوان الوظيفي</th>
+                        <th class="px-4 py-3.5">الدرجة/المرحلة</th>
+                        <th class="px-4 py-3.5">الشعبة</th>
+                        <th class="px-4 py-3.5">الدوام/الموقع</th>
+                        <th class="px-4 py-3.5 text-center">تفاصيل</th>
+                    </tr>
+                </thead>
+                <tbody id="employee-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+        <div id="no-data-msg" class="hidden text-center py-12 text-slate-400 font-semibold bg-slate-50/30 rounded-xl mt-4 border border-dashed border-slate-200">
+            <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300 block"></i>
+            لا توجد بيانات مطابقة لخيارات البحث.
+        </div>
+    </main>
+
+    <!-- Tab 2: Ministry Employees Table -->
+    
+
+    <!-- Employee Details Modal -->
+    <div id="details-modal" class="fixed inset-0 z-50 hidden flex justify-center items-center p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="relative bg-white border border-slate-100 rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto custom-scroll shadow-2xl z-10 flex flex-col">
+            <div class="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/40 sticky top-0">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-address-card text-blue-600"></i>
+                    بطاقة التعريف الوظيفية
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 transition-colors p-1.5 rounded-lg hover:bg-slate-100">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-5 text-slate-800" id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Ministry Employee Details Modal -->
+    <div id="ministry-details-modal" class="fixed inset-0 z-50 hidden flex justify-center items-center p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeMinistryModal()"></div>
+        <div class="relative bg-white border border-slate-100 rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto custom-scroll shadow-2xl z-10 flex flex-col">
+            <div class="flex justify-between items-center p-5 border-b border-emerald-100 bg-emerald-50/40 sticky top-0">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-id-card text-emerald-600"></i>
+                    بطاقة التعريف الوظيفية
+                </h3>
+                <button onclick="closeMinistryModal()" class="text-slate-400 hover:text-slate-700 transition-colors p-1.5 rounded-lg hover:bg-slate-100">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-5 text-slate-800" id="ministry-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="bg-slate-900 text-white px-6 py-3.5 rounded-xl shadow-xl font-semibold flex items-center gap-2.5">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toast-message">تمت العملية!</span>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <script>
+        // ======= CONFIGURATION =======
+        const firebaseConfig = {
+            apiKey: "AIzaSyCZJQk8BSH41LWq81BZTMKp_WRo0lssVDc",
+            authDomain: "empo-5992a.firebaseapp.com",
+            projectId: "empo-5992a",
+            storageBucket: "empo-5992a.appspot.com",
+            messagingSenderId: "305101037803",
+            appId: "1:305101037803:web:5ee1a3a411516e873bcf74",
+            measurementId: "G-9V6GDR4B38"
+        };
+
+        const CONFIG_THRESHOLD = 3;
+        // ==============================
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        db.settings({
+          experimentalForceLongPolling: true
+        });
+
+        let allEmployees = [];
+        let filteredEmployees = [];
+        let allMinistryEmployees = [];
+        let alertThreshold = CONFIG_THRESHOLD;
+        let unsubscribeListener = null;
+        let unsubscribeMinistry = null;
+        let currentTab = 'employees';
+
+        
+
+        
+
+        // ======= تحديث الإحصائية الكلية =======
+        function updateCombinedTotal() {
+            const totalCountEl = document.getElementById('total-count');
+            if (totalCountEl) totalCountEl.innerText = allEmployees.length;
+        }
+
+        // ======= مزامنة فورية مع Firestore - الموظفين الرئيسيين =======
+        function startRealtimeSync() {
+            const syncBadge = document.getElementById('sync-badge');
+            if (syncBadge) {
+                syncBadge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-500"></i> جاري الاتصال...';
+            }
+
+            unsubscribeListener = db.collection('employees')
+                .onSnapshot((snapshot) => {
+                    const employees = [];
+                    snapshot.forEach(doc => {
+                        employees.push({ firestoreId: doc.id, ...doc.data() });
+                    });
+
+                    allEmployees = employees;
+                    alertThreshold = CONFIG_THRESHOLD;
+                    const deptBadge = document.getElementById('dept-count-badge');
+                    if (deptBadge) deptBadge.innerText = employees.length;
+                    updateCombinedTotal();
+
+                    // تحديث شارة الوقت
+                    const now = new Date().toLocaleTimeString('ar-IQ');
+                    const badge = document.getElementById('lastUpdateBadge');
+                    if (badge) badge.innerText = '🔄 آخر مزامنة: ' + now;
+
+                    // تحديث شارة الاتصال
+                    if (syncBadge) {
+                        syncBadge.innerHTML = '<i class="fa-solid fa-circle text-emerald-500 text-xs animate-pulse"></i> متصل مباشرة';
+                        syncBadge.className = 'bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5';
+                    }
+
+                    filterEmployees();
+                }, (error) => {
+                    console.error('Firestore listener error:', error);
+                    if (syncBadge) {
+                        syncBadge.innerHTML = '<i class="fa-solid fa-circle-exclamation text-red-500"></i> انقطع الاتصال';
+                        syncBadge.className = 'bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5';
+                    }
+                });
+        }
+
+
+
+        let unsubscribeUsers = null;
+        let unsubscribeSettings = null;
+
+        // Auto-run realtime sync on load
+        window.addEventListener('DOMContentLoaded', () => {
+            startRealtimeSync();
+            
+            startPasswordsSync();
+        });
+
+        function startPasswordsSync() {
+            // 1. Listen to global access code setting
+            unsubscribeSettings = db.collection('settings').doc('app_settings')
+                .onSnapshot((doc) => {
+                    const codeEl = document.getElementById('synced-global-code');
+                    if (doc.exists && doc.data().password) {
+                        codeEl.innerText = doc.data().password;
+                    } else {
+                        codeEl.innerText = "1234 (الافتراضي)";
+                    }
+
+                    
+                }, (err) => {
+                    console.error("Error syncing app settings:", err);
+                });
+
+            // 2. Listen to users list
+            unsubscribeUsers = db.collection('users')
+                .onSnapshot((snapshot) => {
+                    const tbody = document.getElementById('synced-users-tbody');
+                    tbody.innerHTML = '';
+                    if (snapshot.empty) {
+                        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-slate-400">لا توجد حسابات مضافة.</td></tr>';
+                        return;
+                    }
+                    snapshot.forEach(doc => {
+                        const user = doc.data();
+                        const tr = document.createElement('tr');
+                        const roleArabic = user.role === 'admin' ? 'مسؤول رئيسي' : 'مدخل بيانات/موظف';
+                        tr.innerHTML = `
+                            <td class="px-3 py-2 font-bold text-slate-700">${doc.id}</td>
+                            <td class="px-3 py-2 font-mono font-bold text-blue-600 select-all">${user.password || ''}</td>
+                            <td class="px-3 py-2 text-slate-500">${roleArabic}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }, (err) => {
+                    console.error("Error syncing users:", err);
+                });
+        }
+
+        function openPasswordsModal() {
+            document.getElementById('passwords-modal').classList.remove('hidden');
+        }
+
+        
+        // Close functions
+        function closePasswordsModal() {
+            document.getElementById('passwords-modal').classList.add('hidden');
+        }
+
+        function downloadAttachment(filename, base64Data) {
+            try {
+                if (!base64Data) {
+                    showToast("✕ الملف غير متوفر للتحميل", "bg-red-600", "fa-solid fa-circle-exclamation");
+                    return;
+                }
+                const link = document.createElement('a');
+                let mime = 'application/octet-stream';
+                if (filename.toLowerCase().endsWith('.pdf')) {
+                    mime = 'application/pdf';
+                } else if (filename.toLowerCase().endsWith('.jpg') || filename.toLowerCase().endsWith('.jpeg')) {
+                    mime = 'image/jpeg';
+                } else if (filename.toLowerCase().endsWith('.png')) {
+                    mime = 'image/png';
+                }
+                
+                let dataUrl = base64Data;
+                if (!base64Data.startsWith('data:')) {
+                    dataUrl = `data:${mime};base64,${base64Data}`;
+                }
+
+                link.href = dataUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("✓ جاري تنزيل المرفق...", "bg-emerald-600", "fa-solid fa-circle-check");
+            } catch (err) {
+                console.error("Download error:", err);
+                showToast("✕ خطأ في فتح المرفق", "bg-red-600", "fa-solid fa-circle-exclamation");
+            }
+        }
+
+        function getEmployeeDisplayName(emp) {
+            if (!emp) return 'غير محدد';
+            if (emp.name && emp.name.trim()) return emp.name.trim();
+            if (emp.fullName && emp.fullName.trim()) return emp.fullName.trim();
+            if (emp.full_name && emp.full_name.trim()) return emp.full_name.trim();
+            if (emp.employeeName && emp.employeeName.trim()) return emp.employeeName.trim();
+            const compositeName = [emp.firstName, emp.father, emp.grandfather, emp.surname].filter(Boolean).join(' ');
+            if (compositeName.trim()) return compositeName.trim();
+            if (emp['الاسم']) return String(emp['الاسم']).trim();
+            if (emp['الاسم الرباعي واللقب']) return String(emp['الاسم الرباعي واللقب']).trim();
+            return 'غير مدخل';
+        }
+
+        // ======= جدول الموظفين الرئيسي =======
+        function renderTable(employees) {
+            const tbody = document.getElementById('employee-table-body');
+            const noData = document.getElementById('no-data-msg');
+            tbody.innerHTML = '';
+
+            if (!employees || employees.length === 0) {
+                noData.classList.remove('hidden');
+                return;
+            }
+            noData.classList.add('hidden');
+
+            employees.forEach((emp, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/80 transition-colors cursor-pointer';
+                tr.onclick = (e) => { if (!e.target.closest('button')) openEmployeeDetails(emp.id); };
+
+                const remAll = emp.remainingMonthsAllowance;
+                let allHtml = emp.allowanceDueDate || 'لا يوجد';
+                if (remAll !== null && remAll !== undefined && remAll !== '') {
+                    if (parseInt(remAll) <= 0) allHtml += ` <span class="bg-red-50 text-red-600 font-bold px-1.5 py-0.5 rounded-md text-xs border border-red-100">🚨 مستحقة!</span>`;
+                    else if (parseInt(remAll) <= CONFIG_THRESHOLD) allHtml += ` <span class="bg-amber-50 text-amber-600 font-semibold px-1.5 py-0.5 rounded-md text-xs border border-amber-100">باقي ${remAll} ش</span>`;
+                }
+
+                const remProm = emp.remainingMonthsPromotion;
+                let promHtml = emp.promotionDueDate || 'لا يوجد';
+                if (remProm !== null && remProm !== undefined && remProm !== '') {
+                    if (parseInt(remProm) <= 0) promHtml += ` <span class="bg-red-50 text-red-600 font-bold px-1.5 py-0.5 rounded-md text-xs border border-red-100">🚨 مستحقة!</span>`;
+                    else if (parseInt(remProm) <= CONFIG_THRESHOLD) promHtml += ` <span class="bg-amber-50 text-amber-600 font-semibold px-1.5 py-0.5 rounded-md text-xs border border-amber-100">باقي ${remProm} ش</span>`;
+                }
+
+                const displayName = getEmployeeDisplayName(emp);
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-bold text-slate-400 text-xs">${idx+1}</td>
+                    <td class="px-4 py-3 font-bold text-blue-700 text-xs">${emp.id || '-'}</td>
+                    <td class="px-4 py-3 font-bold text-slate-800">${displayName}</td>
+                    <td class="px-4 py-3 text-slate-600 font-medium text-xs">${emp.jobTitle || 'لا يوجد'}</td>
+                    <td class="px-4 py-3 text-slate-600 text-xs">الدرجة ${emp.grade || '-'} / المرحلة ${emp.stage || '-'}</td>
+                    <td class="px-4 py-3 text-slate-600 font-medium text-xs">${emp.sectionName || 'لا يوجد'}</td>
+                    <td class="px-4 py-3 text-xs">
+                        <span class="px-2 py-0.5 rounded-md text-xs font-semibold ${emp.shift === 'مسائي' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}">${emp.shift || 'صباحي'}</span>
+                        <span class="block mt-1 text-slate-400 font-medium">${emp.workLocation || ''}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex justify-center items-center gap-2">
+                            <button onclick="openEmployeeDetails('${emp.id}')" class="bg-slate-50 hover:bg-blue-50 text-blue-600 p-2 rounded-lg border border-slate-200 active:scale-95 transition-all" title="التفاصيل">
+                                <i class="fa-regular fa-eye text-xs"></i>
+                            </button>
+                            <button onclick="deleteEmployee('${emp.firestoreId || emp.id}')" class="bg-slate-50 hover:bg-red-50 text-red-600 p-2 rounded-lg border border-slate-200 active:scale-95 transition-all" title="حذف الموظف">
+                                <i class="fa-regular fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+
+
+        function filterEmployees() {
+            const q = document.getElementById('search-input').value.toLowerCase().trim();
+            const shift = document.getElementById('shift-filter').value;
+            filteredEmployees = allEmployees.filter(emp => {
+                const displayName = getEmployeeDisplayName(emp).toLowerCase();
+                const matchSearch = !q ||
+                    displayName.includes(q) ||
+                    (emp.id && String(emp.id).toLowerCase().includes(q)) ||
+                    (emp.sectionName && emp.sectionName.toLowerCase().includes(q)) ||
+                    (emp.jobTitle && emp.jobTitle.toLowerCase().includes(q)) ||
+                    (emp.ministerialId && String(emp.ministerialId).toLowerCase().includes(q)) ||
+                    (emp.workLocation && emp.workLocation.toLowerCase().includes(q));
+                const matchShift = !shift || shift === 'صباحي/ مسائي' || shift === 'صباحي / مسائي' || shift === 'كلاهما' || emp.shift === shift;
+                return matchSearch && matchShift;
+            });
+
+            renderTable(filteredEmployees);
+        }
+
+        
+
+        function openEmployeeDetails(empId) {
+            const emp = allEmployees.find(e => String(e.id) === String(empId));
+            if (!emp) return;
+
+            const modal = document.getElementById('details-modal');
+            const content = document.getElementById('modal-content');
+
+            const formatCurrency = (val) => {
+                if (val === undefined || val === null || val === '') return 'غير محدد';
+                return Number(val).toLocaleString() + ' دينار';
+            };
+
+            const field = (label, value, bold=false) =>
+                `<div class="flex justify-between items-start gap-2"><span class="text-slate-600 font-bold shrink-0">${label}:</span><span class="${bold ? 'font-black text-slate-900' : 'font-semibold text-slate-800'} text-right">${value || 'لا يوجد'}</span></div>`;
+
+            const defaultAvatar = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+            let photoUrl = defaultAvatar;
+            if (emp.photo_base64) {
+                photoUrl = `data:image/jpeg;base64,${emp.photo_base64}`;
+            }
+
+            let attachmentsHtml = '<p class="text-xs text-slate-400 font-medium">لا توجد مستمسكات أو مرفقات مرفوعة.</p>';
+            let attachmentsList = [];
+            if (emp.attachments_data) {
+                try {
+                    attachmentsList = typeof emp.attachments_data === 'string' ? JSON.parse(emp.attachments_data) : emp.attachments_data;
+                } catch(e) {}
+            }
+
+            if (Array.isArray(attachmentsList) && attachmentsList.length > 0) {
+                attachmentsHtml = `
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                        ${attachmentsList.map((fileObj, fIdx) => {
+                            const filename = fileObj.name;
+                            const isPdf = filename.toLowerCase().endsWith('.pdf');
+                            const iconClass = isPdf ? 'fa-solid fa-file-pdf text-red-500' : 'fa-solid fa-file-image text-blue-500';
+                            return `
+                                <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center shadow-inner">
+                                    <div class="flex items-center gap-2 overflow-hidden mr-2">
+                                        <i class="${iconClass} text-base flex-shrink-0"></i>
+                                        <span class="text-xs text-slate-700 font-semibold truncate" title="${filename}">${filename}</span>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button onclick="previewAttachment('${filename}', '${fileObj.data}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm">
+                                            معاينة
+                                        </button>
+                                        <button onclick="downloadAttachment('${filename}', '${fileObj.data}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm">
+                                            تنزيل
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            content.innerHTML = `
+                <div class="flex flex-col md:flex-row gap-6">
+                    <div class="flex flex-col items-center gap-3 shrink-0">
+                        <div class="w-28 h-36 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex justify-center items-center shadow-inner">
+                            <img src="${photoUrl}" onerror="this.onerror=null; this.src=defaultAvatar;" class="w-full h-full object-cover" />
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-lg font-bold text-slate-800">${emp.name}</h2>
+                            <p class="text-xs text-slate-400 mt-0.5 flex items-center justify-center gap-2">
+                                <span>الرقم: <b class="text-slate-700">${emp.id}</b></span>
+                                <button id="edit-id-btn-${emp.id}" onclick="editEmployeeId('${emp.id}')" class="text-blue-500 hover:text-blue-700 transition-colors bg-blue-50 px-1.5 py-0.5 rounded" title="تعديل الرقم الوظيفي">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                            </p>
+                            <p class="text-xs text-blue-700 mt-2 bg-blue-50 border border-blue-100 px-3 py-1 rounded-lg font-semibold">الدرجة ${emp.grade || '-'} | المرحلة ${emp.stage || '-'}</p>
+                        </div>
+                    </div>
+                    <div class="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-slate-50/50 border border-slate-100 rounded-xl p-4">
+                            <h4 class="font-bold text-blue-600 mb-3 border-b border-slate-200/60 pb-2 text-sm flex items-center gap-1.5"><i class="fa-solid fa-user"></i> البيانات الشخصية</h4>
+                            <div class="space-y-3 text-sm">${field('اسم الأم', emp.motherName, true)}${field('تاريخ الميلاد', emp.dob)}${field('مكان الولادة', emp.placeOfBirth)}${field('الحالة الاجتماعية', emp.socialStatus)}${field('اسم الزوج/ة', emp.spouseName)}${field('رقم الموبايل', emp.phone, true)}${field('البريد الإلكتروني', emp.email)}</div>
+                        </div>
+                        <div class="bg-slate-50/50 border border-slate-100 rounded-xl p-4">
+                            <h4 class="font-bold text-emerald-600 mb-3 border-b border-slate-200/60 pb-2 text-sm flex items-center gap-1.5"><i class="fa-solid fa-briefcase"></i> الموقف الوظيفي</h4>
+                            <div class="space-y-3 text-sm">${field('تاريخ التعيين', emp.appointmentDate)}${field('تاريخ المباشرة', emp.commencementDate)}${field('العنوان الوظيفي', emp.jobTitle, true)}${field('التحصيل الدراسي', emp.qualification, true)}${field('التخصص الدراسي الدقيق', emp.specialization)}${field('موقع الدوام', emp.workLocation + ' (' + (emp.shift||'صباحي') + ')', true)}${field('الشعبة/الوحدة', (emp.sectionName||'') + ' / ' + (emp.unitName||''))}${field('المنصب', emp.currentPosition, true)}${field('الهوية الوزارية', emp.ministerialId, true)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-50/50 border border-slate-100 rounded-xl p-4 mt-4">
+                    <h4 class="font-bold text-slate-700 mb-2 text-xs flex items-center gap-1.5"><i class="fa-solid fa-paperclip"></i> المستمسكات والمرفقات</h4>
+                    ${attachmentsHtml}
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        async function editEmployeeId(oldId) {
+            const newId = prompt("أدخل الرقم الوظيفي الجديد:", oldId);
+            if (!newId || newId.trim() === '' || String(newId).trim() === String(oldId)) return;
+
+            const btn = document.getElementById('edit-id-btn-' + oldId);
+            if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            try {
+                const newDoc = await db.collection('employees').doc(newId.trim()).get();
+                if (newDoc.exists) {
+                    showToast("الرقم الوظيفي الجديد مستخدم بالفعل!", "bg-red-600", "fa-solid fa-circle-exclamation");
+                    if (btn) btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+                    return;
+                }
+
+                const oldDocRef = db.collection('employees').doc(oldId);
+                const oldDocSnap = await oldDocRef.get();
+                if (!oldDocSnap.exists) {
+                    showToast("الموظف غير موجود!", "bg-red-600", "fa-solid fa-circle-exclamation");
+                    if (btn) btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+                    return;
+                }
+
+                const empData = oldDocSnap.data();
+                empData.id = newId.trim();
+
+                await db.collection('employees').doc(newId.trim()).set(empData);
+                await oldDocRef.delete();
+
+                showToast("تم تعديل الرقم الوظيفي بنجاح", "bg-emerald-600", "fa-solid fa-circle-check");
+                closeModal();
+            } catch (err) {
+                console.error("Error editing employee ID:", err);
+                showToast("حدث خطأ أثناء تعديل الرقم!", "bg-red-600", "fa-solid fa-circle-exclamation");
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('details-modal').classList.add('hidden');
+        }
+
+        function showToast(msg, bg='bg-slate-900', icon='fa-solid fa-circle-check text-emerald-400') {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            document.getElementById('toast-icon').className = icon;
+            t.className = 'text-white px-6 py-3.5 rounded-xl shadow-xl font-semibold flex items-center gap-2.5 ' + bg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // Live Clock
+        setInterval(() => {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const el = document.getElementById('live-clock');
+            if (el) el.innerText = timeStr;
+        }, 1000);
+
+        async function deleteEmployee(docId) {
+            if (confirm("هل أنت متأكد من رغبتك في حذف هذا الموظف نهائياً؟ لا يمكن التراجع عن هذا الإجراء.")) {
+                try {
+                    await db.collection('employees').doc(docId).delete();
+                    showToast('تم حذف الموظف بنجاح');
+                } catch(error) {
+                    console.error('Error deleting employee:', error);
+                    showToast('حدث خطأ أثناء الحذف', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+                }
+            }
+        }
+
+        function previewAttachment(filename, base64data) {
+            if (!base64data) {
+                showToast('الملف غير متوفر للمعاينة', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+                return;
+            }
+            let mimeType = 'application/octet-stream';
+            const lowerFile = filename.toLowerCase();
+            if (lowerFile.endsWith('.pdf')) mimeType = 'application/pdf';
+            else if (lowerFile.endsWith('.png')) mimeType = 'image/png';
+            else if (lowerFile.endsWith('.jpg') || lowerFile.endsWith('.jpeg')) mimeType = 'image/jpeg';
+            else if (lowerFile.endsWith('.webp')) mimeType = 'image/webp';
+            
+            let dataUrl = base64data;
+            if (!base64data.startsWith('data:')) {
+                dataUrl = `data:${mimeType};base64,${base64data}`;
+            }
+
+            const pdfWindow = window.open("");
+            if (pdfWindow) {
+                pdfWindow.document.write(`<html dir="rtl"><head><title>معاينة: ${filename}</title></head><body style="margin:0;padding:0;background:#333;display:flex;justify-content:center;align-items:center;height:100vh;">
+                    <iframe width="100%" height="100%" src="${dataUrl}" style="border:none; background:white;"></iframe>
+                </body></html>`);
+                pdfWindow.document.close();
+            } else {
+                showToast('الرجاء السماح بالنوافذ المنبثقة (Pop-ups) لمعاينة الملف', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+            }
+        }
+
+        function getExportData() {
+            return filteredEmployees.map((emp, index) => ({
+                "ت": index + 1,
+                "الاسم الكامل الرباعي": emp.name || '',
+                "الرقم الوظيفي": emp.id || '',
+                "مكان الولادة": emp.placeOfBirth || '',
+                "تاريخ الميلاد": emp.dob || '',
+                "الحالة الاجتماعية": emp.socialStatus || '',
+                "اسم الأم الكامل": emp.motherName || '',
+                "اسم الزوج / الزوجة": emp.spouseName || '',
+                "رقم البطاقة التموينية": emp.ration_card || '',
+                "رقم البطاقة الوطنية": emp.national_id || emp.civil_id || '',
+                "رقم الموبايل": emp.phone || '',
+                "البريد الإلكتروني": emp.email || '',
+                "التحصيل الدراسي": emp.qualification || '',
+                "التخصص الدراسي الدقيق": emp.specialization || '',
+                "العنوان الوظيفي": emp.jobTitle || '',
+                "الدرجة الوظيفية": emp.grade || '',
+                "المرحلة": emp.stage || '',
+                "الدوام": emp.shift || '',
+                "موقع العمل": emp.workplace || emp.workLocation || '',
+                "المنصب الحالي": emp.currentPosition || '',
+                "تاريخ التعيين": emp.appointmentDate || '',
+                "رقم الهوية الوزارية": emp.ministerialId || '',
+                "اسم الشعبة / الوحدة": emp.sectionName || '',
+                "اسم الوحدة الفرعية": emp.unitName || '',
+                "تاريخ المباشرة بالعمل": emp.commencementDate || emp.startDate || ''
+            }));
+        }
+
+        function exportToExcel() {
+            if (!filteredEmployees || filteredEmployees.length === 0) {
+                showToast('لا توجد بيانات للتصدير', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+                return;
+            }
+            
+            const exportData = getExportData();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            // Auto-fit columns width
+            const colWidths = [];
+            const keys = Object.keys(exportData[0]);
+            
+            for (let i = 0; i < keys.length; i++) {
+                colWidths[i] = { wch: keys[i].length + 2 };
+            }
+            
+            exportData.forEach(row => {
+                keys.forEach((key, i) => {
+                    const value = row[key] ? row[key].toString() : '';
+                    if (value.length + 2 > colWidths[i].wch) {
+                        colWidths[i].wch = value.length + 2;
+                    }
+                });
+            });
+            ws['!cols'] = colWidths;
+            
+            if(!ws['!views']) ws['!views'] = [];
+            ws['!views'].push({ rightToLeft: true });
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "الموظفين");
+            XLSX.writeFile(wb, "قاعدة_بيانات_الموظفين.xlsx");
+            showToast('تم تصدير ملف Excel بنجاح');
+        }
+
+        function exportToPDF() {
+            if (!filteredEmployees || filteredEmployees.length === 0) {
+                showToast('لا توجد بيانات للتصدير', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+                return;
+            }
+            
+            const exportData = getExportData();
+            openPrintPdfWindow(exportData);
+        }
+
+        function openPrintPdfWindow(exportData) {
+            const keys = Object.keys(exportData[0]);
+            const printWin = window.open('', '_blank', 'width=1200,height=800');
+            
+            if (!printWin) {
+                showToast('يرجى السماح للنوافذ المنبثقة (Pop-ups) لتنفيذ التصدير', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+                return;
+            }
+
+            const rowsHtml = exportData.map((row, idx) => `
+                <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                    ${keys.map(k => `<td style="border:1px solid #cbd5e1; padding:6px 4px; text-align:center; word-break:break-word;">${(row[k] !== undefined && row[k] !== null && row[k] !== '') ? row[k] : '-'}</td>`).join('')}
+                </tr>
+            `).join('');
+
+            const headersHtml = keys.map(k => `<th style="border:1px solid #cbd5e1; padding:8px 4px; background-color:#f1f5f9; color:#0f172a; text-align:center; font-weight:bold;">${k}</th>`).join('');
+
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html lang="ar" dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>قاعدة_بيانات_الموظفين.pdf</title>
+                    <style>
+                        @page {
+                            size: A4 landscape;
+                            margin: 8mm;
+                        }
+                        body {
+                            font-family: Arial, 'Segoe UI', Tahoma, sans-serif;
+                            direction: rtl;
+                            margin: 0;
+                            padding: 15px;
+                            color: #0f172a;
+                            background: #ffffff;
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 15px;
+                            border-bottom: 2px solid #2563eb;
+                            padding-bottom: 10px;
+                        }
+                        .header h2 {
+                            margin: 0 0 4px 0;
+                            font-size: 18px;
+                            color: #0f172a;
+                            font-weight: bold;
+                        }
+                        .header h3 {
+                            margin: 0 0 8px 0;
+                            font-size: 14px;
+                            color: #2563eb;
+                            font-weight: bold;
+                        }
+                        .meta {
+                            display: flex;
+                            justify-content: space-between;
+                            font-size: 11px;
+                            color: #475569;
+                            font-weight: bold;
+                            padding: 0 5px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 8.5px;
+                            margin-top: 10px;
+                        }
+                        th, td {
+                            border: 1px solid #cbd5e1;
+                            padding: 5px 3px;
+                            text-align: center;
+                        }
+                        th {
+                            background-color: #f1f5f9 !important;
+                            color: #0f172a !important;
+                            font-weight: bold !important;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        tr {
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2>جمهورية العراق - بوابة التصاريح الأمنية</h2>
+                        <h3>تقرير قاعدة بيانات الموظفين</h3>
+                        <div class="meta">
+                            <span>إجمالي الموظفين في التقرير: ${exportData.length}</span>
+                            <span>تاريخ التصدير: ${new Date().toLocaleDateString('ar-IQ')}</span>
+                        </div>
+                    </div>
+                    <table>
+                        <thead><tr>${headersHtml}</tr></thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 300);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+            showToast('تم فتح نافذة تصدير الـ PDF بنجاح', 'bg-emerald-600', 'fa-solid fa-circle-check text-white');
+        }
+
+        function printCards() {
+            if (!filteredEmployees || filteredEmployees.length === 0) {
+                showToast('لا توجد بيانات للطباعة', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
+                return;
+            }
+
+            let container = document.getElementById('id-cards-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'id-cards-container';
+                container.style.display = 'none';
+                document.body.appendChild(container);
+            }
+            container.innerHTML = '';
+
+            const defaultAvatar = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+            filteredEmployees.forEach(emp => {
+                let photoUrl = defaultAvatar;
+                if (emp.photo_base64) {
+                    photoUrl = `data:image/jpeg;base64,${emp.photo_base64}`;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'id-card';
+                card.style.marginBottom = '30px';
+                card.style.border = '2px solid #1e3a8a';
+                card.style.borderRadius = '12px';
+                card.style.overflow = 'hidden';
+                card.style.pageBreakInside = 'avoid';
+                card.style.breakInside = 'avoid';
+                
+                card.innerHTML = `
+                    <div class="id-card-header" style="background-color: #f8fafc; border-bottom: 2px solid #1e3a8a; padding: 8px; text-align: center; font-weight: bold; color: #1e3a8a;">
+                        <h3 style="margin:0; font-size: 16px;">الاستمارة الوظيفية - بوابة التصاريح الأمنية</h3>
+                    </div>
+                    <div class="id-card-body" style="display:block; padding:15px;">
+                        <div class="id-card-photo" style="width:100px; height:120px; border:2px dashed #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#f8fafc; overflow:hidden; margin: 0 auto 15px auto;">
+                            <img src="${photoUrl}" onerror="this.onerror=null; this.src=defaultAvatar" style="width:100%; height:100%; object-fit:cover;">
+                        </div>
+                        <div class="id-card-info" style="width:100%; text-align:right; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;" dir="rtl">
+                            <div style="font-size: 12px;"><strong>الاسم الكامل الرباعي:</strong> <span style="color:#1e3a8a; font-weight: bold;">${emp.name || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>الرقم الوظيفي:</strong> <span style="font-weight: bold;">${emp.id || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>مكان الولادة:</strong> <span>${emp.placeOfBirth || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>تاريخ الميلاد:</strong> <span dir="ltr">${emp.dob || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>الحالة الاجتماعية:</strong> <span>${emp.socialStatus || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>اسم الأم الكامل:</strong> <span>${emp.motherName || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>اسم الزوج / الزوجة:</strong> <span>${emp.spouseName || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>رقم البطاقة التموينية:</strong> <span dir="ltr">${emp.ration_card || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>رقم البطاقة الوطنية:</strong> <span dir="ltr">${emp.national_id || emp.civil_id || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>رقم الموبايل:</strong> <span dir="ltr">${emp.phone || '-'}</span></div>
+                            
+                            <div style="font-size: 12px; grid-column: span 2;"><strong>البريد الإلكتروني:</strong> <span dir="ltr">${emp.email || '-'}</span></div>
+                            
+                            <div style="grid-column: span 2; height: 1px; background-color: #e2e8f0; margin: 4px 0;"></div>
+                            
+                            <div style="font-size: 12px;"><strong>العنوان الوظيفي:</strong> <span>${emp.jobTitle || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>التحصيل الدراسي:</strong> <span>${emp.qualification || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>التخصص الدراسي الدقيق:</strong> <span>${emp.specialization || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>الدرجة الوظيفية:</strong> <span>${emp.grade || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>المرحلة:</strong> <span>${emp.stage || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>الدوام:</strong> <span>${emp.shift || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>موقع العمل:</strong> <span>${emp.workLocation || emp.workplace || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>رقم الهوية الوزارية:</strong> <span>${emp.ministerialId || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>المنصب الحالي:</strong> <span>${emp.currentPosition || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>تاريخ التعيين:</strong> <span dir="ltr">${emp.appointmentDate || '-'}</span></div>
+                            
+                            <div style="font-size: 12px;"><strong>تاريخ المباشرة بالعمل:</strong> <span dir="ltr">${emp.commencementDate || emp.startDate || '-'}</span></div>
+                            <div style="font-size: 12px;"><strong>اسم الشعبة / الوحدة:</strong> <span>${emp.sectionName || '-'}</span></div>
+                            
+                            <div style="font-size: 12px; grid-column: span 2;"><strong>اسم الوحدة الفرعية:</strong> <span>${emp.unitName || '-'}</span></div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            
+            document.body.classList.add('printing-cards');
+            
+            // Wait for images to render before triggering print dialog
+            setTimeout(() => {
+                window.print();
+                setTimeout(() => {
+                    document.body.classList.remove('printing-cards');
+                }, 1000);
+            }, 500);
+        }
+    </script>
+</body>
+</html>

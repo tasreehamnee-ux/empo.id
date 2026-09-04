@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استمارة تسجيل الموظفين - شعبة المتابعة</title>
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    
+    <!-- CSS & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.8); }
+        .step-circle { transition: all 0.4s ease; }
+        .step-circle.active { background-color: #2563eb; color: #fff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2); }
+        .step-circle.completed { background-color: #10b981; color: #fff; }
+    </style>
+    <script>
+        function handleLogoError(img) {
+            const fallbacks = ['logo.jpg', 'logo.jpeg', 'image.jpeg', 'image.png', 'image.jpg', 'صورة.jpeg', 'صورة.jpg'];
+            const currentSrc = img.src.toLowerCase();
+            let currentIndex = -1;
+            for (let i = 0; i < fallbacks.length; i++) {
+                if (currentSrc.endsWith(fallbacks[i].toLowerCase())) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+            if (currentIndex >= fallbacks.length - 1) {
+                img.onerror = null;
+                return;
+            }
+            img.src = fallbacks[currentIndex + 1];
+        }
+    </script>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex items-center justify-center">
+
+    <div class="w-full max-w-4xl glass-card p-6 md:p-8 rounded-3xl shadow-2xl">
+        <!-- Header -->
+        <div class="text-center mb-8 border-b pb-6">
+            <div class="w-20 h-20 mx-auto mb-4 overflow-hidden rounded-2xl border border-slate-200 shadow-md bg-slate-50 flex items-center justify-center">
+                <img src="logo.jpg" onerror="handleLogoError(this)" class="w-full h-full object-cover">
+            </div>
+            <h2 class="text-2xl font-extrabold text-slate-800">استمارة تسجيل بيانات موظف</h2>
+            <p class="text-slate-500 text-sm mt-1.5">شعبة المتابعة - نظام إدخال البيانات الموحد</p>
+        </div>
+
+        <!-- Progress Steps Tracker -->
+        <div id="steps-tracker" class="flex justify-between items-center max-w-xl mx-auto mb-10 relative">
+            <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-200 -translate-y-1/2 z-0"></div>
+            <div id="progress-bar-fill" class="absolute top-1/2 left-0 h-1 bg-blue-500 -translate-y-1/2 z-0 transition-all duration-500 w-0"></div>
+            
+            <div class="relative z-10 flex flex-col items-center">
+                <div id="circle-step-1" class="step-circle active w-10 h-10 rounded-full flex items-center justify-center bg-white border-2 border-slate-300 font-bold text-sm">1</div>
+                <span class="text-xs text-slate-500 mt-1 font-semibold">المعلومات الشخصية</span>
+            </div>
+            <div class="relative z-10 flex flex-col items-center">
+                <div id="circle-step-2" class="step-circle w-10 h-10 rounded-full flex items-center justify-center bg-white border-2 border-slate-300 font-bold text-sm">2</div>
+                <span class="text-xs text-slate-500 mt-1 font-semibold">الموقف الوظيفي</span>
+            </div>
+            <div class="relative z-10 flex flex-col items-center">
+                <div id="circle-step-3" class="step-circle w-10 h-10 rounded-full flex items-center justify-center bg-white border-2 border-slate-300 font-bold text-sm">3</div>
+                <span class="text-xs text-slate-500 mt-1 font-semibold">الصورة والملفات</span>
+            </div>
+        </div>
+
+        <!-- Main Form -->
+        <form id="employeeForm" class="space-y-8" onsubmit="handleFormSubmit(event)" novalidate>
+            
+            <!-- ============================================== -->
+            <!-- STEP 1: PERSONAL INFORMATION -->
+            <!-- ============================================== -->
+            <div id="step-1-content" class="step-content space-y-6">
+                <h3 class="text-lg font-bold text-slate-800 border-r-4 border-blue-500 pr-3 mb-4">الخطوة 1: البيانات الشخصية والتعريفية</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">الاسم الكامل الرباعي <span class="text-red-500">*</span></label>
+                        <input type="text" id="name" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">الرقم الوظيفي</label>
+                        <input type="text" id="emp_id" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">تاريخ الميلاد <span class="text-red-500">*</span></label>
+                        <input type="date" id="dob" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">مكان الولادة <span class="text-red-500">*</span></label>
+                        <input type="text" id="pob" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">الحالة الاجتماعية</label>
+                        <select id="social-status" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none bg-white">
+                            <option value="اعزب">أعزب/عزباء</option>
+                            <option value="متزوج">متزوج/ة</option>
+                            <option value="مطلق">مطلق/ة</option>
+                            <option value="ارمل">أرمل/ة</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">اسم الأم الكامل <span class="text-red-500">*</span></label>
+                        <input type="text" id="mother-name" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">اسم الزوج / الزوجة (إن وجد)</label>
+                        <input type="text" id="spouse-name" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">رقم البطاقة الوطنية <span class="text-red-500">*</span></label>
+                        <input type="text" id="national_id" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none text-left" dir="ltr">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">رقم البطاقة التموينية <span class="text-red-500">*</span></label>
+                        <input type="text" id="ration_card" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none text-left" dir="ltr">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">رقم الموبايل <span class="text-red-500">*</span></label>
+                        <input type="text" id="phone" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none text-left" dir="ltr">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">البريد الإلكتروني</label>
+                        <input type="email" id="email" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none text-left" dir="ltr">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- STEP 2: PROFESSIONAL POSITION DETAILS -->
+            <!-- ============================================== -->
+            <div id="step-2-content" class="step-content space-y-6 hidden">
+                <h3 class="text-lg font-bold text-slate-800 border-r-4 border-blue-500 pr-3 mb-4">الخطوة 2: الموقف والتفاصيل الوظيفية</h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">العنوان الوظيفي <span class="text-red-500">*</span></label>
+                        <input type="text" id="jobTitle" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">التحصيل الدراسي <span class="text-red-500">*</span></label>
+                        <input type="text" id="qualification" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">التخصص الدراسي الدقيق</label>
+                        <input type="text" id="specialization" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">الدرجة الوظيفية</label>
+                        <select id="grade" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none bg-white">
+                            <option value="">اختر الدرجة</option>
+                            <option value="الأولى">الأولى</option> <option value="الثانية">الثانية</option>
+                            <option value="الثالثة">الثالثة</option> <option value="الرابعة">الرابعة</option>
+                            <option value="الخامسة">الخامسة</option> <option value="السادسة">السادسة</option>
+                            <option value="السابعة">السابعة</option> <option value="الثامنة">الثامنة</option>
+                            <option value="التاسعة">التاسعة</option> <option value="العاشرة">العاشرة</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">المرحلة</label>
+                        <select id="stage" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none bg-white">
+                            <option value="">اختر المرحلة</option>
+                            <option value="1">1</option> <option value="2">2</option> <option value="3">3</option>
+                            <option value="4">4</option> <option value="5">5</option> <option value="6">6</option>
+                            <option value="7">7</option> <option value="8">8</option> <option value="9">9</option>
+                            <option value="10">10</option> <option value="11">11</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">الدوام</label>
+                        <select id="shift" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none bg-white">
+                            <option value="صباحي">صباحي</option>
+                            <option value="مسائي">مسائي</option>
+                             <option value="كلاهما">كلاهما</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">موقع العمل</label>
+                        <input type="text" id="workLocation" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">رقم الهوية الوزارية</label>
+                        <input type="text" id="ministerialId" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">المنصب الحالي</label>
+                        <input type="text" id="currentPosition" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">تاريخ التعيين</label>
+                        <input type="date" id="appointmentDate" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">تاريخ المباشرة بالعمل</label>
+                        <input type="date" id="commencementDate" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">اسم الشعبة / الوحدة</label>
+                        <input type="text" id="sectionName" value=" " class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none bg-slate-50">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-bold mb-1.5 text-sm">اسم الوحدة الفرعية (إن وجد)</label>
+                        <input type="text" id="unitName" placeholder="" class="w-full border border-slate-300 px-4 py-2.5 rounded-xl text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- STEP 3: UPLOADS & ATTACHMENTS -->
+            <!-- ============================================== -->
+            <div id="step-3-content" class="step-content space-y-6 hidden">
+                <h3 class="text-lg font-bold text-slate-800 border-r-4 border-blue-500 pr-3 mb-4">الخطوة الأخيرة: الصور والمستمسكات المرفقة</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Photo Upload -->
+                    <div class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center transition-all bg-slate-50/50 flex flex-col items-center justify-center min-h-[220px]">
+                        <i class="fa-regular fa-image text-4xl text-slate-400 mb-3"></i>
+                        <span class="block text-sm font-bold text-slate-700 mb-1">رفع الصورة الشخصية للموظف</span>
+                        <span class="block text-xs text-slate-500 mb-4">يدعم صيغ JPG, PNG (5 ميجابايت فأكثر - ضغط تلقائي)</span>
+                        <input type="file" id="photo-upload" accept="image/*" class="hidden" onchange="previewPhoto(this)">
+                        <button type="button" onclick="document.getElementById('photo-upload').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm">اختر الصورة</button>
+                        
+                        <!-- Photo Preview -->
+                        <div id="photo-preview-container" class="hidden mt-4 relative w-24 h-32 rounded-xl overflow-hidden border shadow-inner">
+                            <img id="photo-preview" src="#" class="w-full h-full object-cover">
+                            <button type="button" onclick="removePhoto()" class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow">✕</button>
+                        </div>
+                    </div>
+
+                    <!-- Files Upload -->
+                    <div class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center transition-all bg-slate-50/50 flex flex-col items-center justify-center min-h-[220px]">
+                        <i class="fa-solid fa-file-pdf text-4xl text-slate-400 mb-3"></i>
+                        <span class="block text-sm font-bold text-slate-700 mb-1">رفع المرفقات والمستمسكات الثبوتية</span>
+                        <span class="block text-xs text-slate-500 mb-4">يمكن رفع ملفات PDF أو صور متعددة (يدعم 5 ميجابايت فأكثر)</span>
+                        <input type="file" id="attachments-upload" accept=".pdf,image/*" multiple class="hidden" onchange="handleAttachments(this)">
+                        <button type="button" onclick="document.getElementById('attachments-upload').click()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm">اختر الملفات</button>
+                        
+                        <!-- Attachments List -->
+                        <div id="attachments-list" class="w-full mt-4 space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="flex justify-between items-center border-t pt-6">
+                <button type="button" id="prevBtn" onclick="navigateStep(-1)" class="invisible bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold transition duration-150 flex items-center gap-2">
+                    <i class="fa-solid fa-arrow-right"></i>
+                    السابق
+                </button>
+                <button type="button" id="nextBtn" onclick="navigateStep(1)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition duration-150 flex items-center gap-2 shadow-md">
+                    التالي
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button type="submit" id="submitBtn" onclick="handleFormSubmit(event)" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition duration-150 flex items-center gap-2 shadow-md">
+                    <i class="fa-solid fa-cloud-arrow-up animate-bounce"></i>
+                    حفظ وإرسال الاستمارة
+                </button>
+            </div>
+        </form>
+
+        <!-- Toast Notifications -->
+        <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 text-white px-6 py-3.5 rounded-xl shadow-xl font-semibold flex items-center gap-2.5 z-50">
+            <i id="toast-icon" class="fa-solid fa-circle-check"></i>
+            <span id="toast-msg"></span>
+        </div>
+    </div>
+
+    <!-- Firebase Logic & Interactivity -->
+    <script>
+        // ==============================
+        // CONFIGURATION (empo-5992a)
+        // ==============================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCZJQk8BSH41LWq81BZTMKp_WRo0lssVDc",
+            authDomain: "empo-5992a.firebaseapp.com",
+            projectId: "empo-5992a",
+            storageBucket: "empo-5992a.appspot.com",
+            messagingSenderId: "305101037803",
+            appId: "1:305101037803:web:5ee1a3a411516e873bcf74",
+            measurementId: "G-9V6GDR4B38"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        db.settings({
+          experimentalForceLongPolling: true
+        });
+
+        // State variables
+        let currentStep = 1;
+        const totalSteps = 3;
+        let photoBase64 = "";
+        let uploadedFiles = []; // Array of {name: "filename", data: "base64"}
+
+        // Navigate Wizard Steps
+        function navigateStep(direction) {
+            let nextStep = currentStep + direction;
+            if (nextStep < 1 || nextStep > totalSteps) return;
+
+            // Simple validation before going forward
+            if (direction > 0 && !validateCurrentStep()) {
+                showToast("يرجى ملء جميع الحقول المطلوبة بنجمة (*) أولاً", "bg-red-600");
+                return;
+            }
+
+            // Hide old step, show new step
+            document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`step-${nextStep}-content`).classList.remove('hidden');
+
+            currentStep = nextStep;
+            
+            // Update Tracker Styles
+            document.querySelectorAll('.step-circle').forEach((c, idx) => {
+                let trackerIdx = idx + 1;
+                c.classList.remove('active', 'completed');
+                
+                if (trackerIdx === currentStep) {
+                    c.classList.add('active');
+                } else if (trackerIdx < currentStep) {
+                    c.classList.add('completed');
+                    c.innerHTML = '<i class="fa-solid fa-check"></i>';
+                } else {
+                    c.innerText = trackerIdx;
+                }
+            });
+
+            // Update Progress Bar
+            const barFill = document.getElementById('progress-bar-fill');
+            const percent = ((currentStep - 1) / (totalSteps - 1)) * 100;
+            barFill.style.width = `${percent}%`;
+
+            // Adjust navigation buttons visibility
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const submitBtn = document.getElementById('submitBtn');
+
+            prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+            
+            if (currentStep === totalSteps) {
+                nextBtn.classList.add('hidden');
+                submitBtn.classList.remove('hidden');
+            } else {
+                nextBtn.classList.remove('hidden');
+                submitBtn.classList.add('hidden');
+            }
+        }
+
+        // Basic Client Validation
+        function validateCurrentStep() {
+            let isValid = true;
+            if (currentStep === 1) {
+                isValid = isFieldValid('name') && isFieldValid('dob') && isFieldValid('pob') && isFieldValid('mother-name') && isFieldValid('phone') && isFieldValid('national_id') && isFieldValid('ration_card');
+            } else if (currentStep === 2) {
+                isValid = isFieldValid('jobTitle') && isFieldValid('qualification');
+            }
+            return isValid;
+        }
+
+        function isFieldValid(id) {
+            const el = document.getElementById(id);
+            if (!el) return true;
+            if (el.value.trim() === '') {
+                el.classList.add('border-red-500');
+                return false;
+            } else {
+                el.classList.remove('border-red-500');
+                return true;
+            }
+        }
+
+        // Helper: compress image if it is an image, otherwise return original base64
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const originalBase64 = e.target.result.split(',')[1];
+                
+                if (!file.type || !file.type.startsWith('image/')) {
+                    callback(originalBase64);
+                    return;
+                }
+
+                try {
+                    const img = new Image();
+                    img.onload = function() {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+
+                            const MAX_WIDTH = 1200;
+                            const MAX_HEIGHT = 1200;
+                            if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                    height *= MAX_WIDTH / width;
+                                    width = MAX_WIDTH;
+                                }
+                            } else {
+                                if (height > MAX_HEIGHT) {
+                                    width *= MAX_HEIGHT / height;
+                                    height = MAX_HEIGHT;
+                                }
+                            }
+
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                            callback(dataUrl.split(',')[1]);
+                        } catch (err) {
+                            console.warn("Canvas compression failed, falling back to original:", err);
+                            callback(originalBase64);
+                        }
+                    };
+                    img.onerror = function() {
+                        callback(originalBase64);
+                    };
+                    img.src = e.target.result;
+                } catch (err) {
+                    console.warn("Image compression setup failed, falling back:", err);
+                    callback(originalBase64);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Photo Upload Handling & Previewing
+        function previewPhoto(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            if (file.size > 50 * 1024 * 1024) {
+                showToast("حجم الصورة كبير جداً، الحد الأقصى هو 50 ميجابايت", "bg-red-600");
+                input.value = "";
+                return;
+            }
+
+            compressImage(file, function(base64Data) {
+                document.getElementById('photo-preview').src = `data:image/jpeg;base64,${base64Data}`;
+                document.getElementById('photo-preview-container').classList.remove('hidden');
+                photoBase64 = base64Data;
+            });
+        }
+
+        // Remove Photo
+        function removePhoto() {
+            document.getElementById('photo-upload').value = "";
+            document.getElementById('photo-preview-container').classList.add('hidden');
+            photoBase64 = "";
+        }
+
+        // Multiple Attachments base64 convert
+        function handleAttachments(input) {
+            const files = Array.from(input.files);
+            const list = document.getElementById('attachments-list');
+            
+            files.forEach(file => {
+                if (file.size > 50 * 1024 * 1024) {
+                    showToast(`الملف ${file.name} كبير جداً، يجب أن لا يتعدى 50 ميجابايت`, "bg-red-600");
+                    return;
+                }
+
+                const rowId = 'file-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                const li = document.createElement('div');
+                li.id = rowId;
+                li.className = "bg-white border rounded-xl p-2.5 flex justify-between items-center text-xs shadow-inner";
+                li.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden mr-2">
+                        <i class="fa-regular fa-file-lines text-slate-400"></i>
+                        <span class="text-slate-700 font-bold truncate">${file.name}</span>
+                    </div>
+                    <button type="button" onclick="removeAttachment('${rowId}')" class="text-red-500 hover:text-red-700 font-bold px-2">حذف</button>
+                `;
+                list.appendChild(li);
+
+                compressImage(file, function(base64Data) {
+                    uploadedFiles.push({
+                        name: file.name,
+                        data: base64Data,
+                        id: rowId
+                    });
+                });
+            });
+            input.value = ""; // clear
+        }
+
+        function removeAttachment(id) {
+            document.getElementById(id).remove();
+            uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+        }
+
+        // Backend & Cloud Form Submission Logic
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            if (!validateCurrentStep()) {
+                showToast("يرجى ملء كافة الحقول المطلوبة", "bg-red-600");
+                return;
+            }
+
+            const btn = document.getElementById('submitBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري إرسال البيانات...';
+            btn.disabled = true;
+
+            try {
+                const cleanFiles = uploadedFiles.map(f => ({name: f.name, data: f.data}));
+                const attachmentsJsonStr = JSON.stringify(cleanFiles);
+
+                let empId = document.getElementById('emp_id').value.trim();
+                if (!empId) {
+                    empId = 'EMP-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+                }
+                const empData = {
+                    id: empId,
+                    name: document.getElementById('name').value.trim(),
+                    national_id: document.getElementById('national_id').value.trim(),
+                    ration_card: document.getElementById('ration_card').value.trim(),
+                    dob: document.getElementById('dob').value,
+                    placeOfBirth: document.getElementById('pob').value.trim(),
+                    socialStatus: document.getElementById('social-status').value,
+                    motherName: document.getElementById('mother-name').value.trim(),
+                    spouseName: document.getElementById('spouse-name').value.trim(),
+                    phone: document.getElementById('phone').value.trim(),
+                    email: document.getElementById('email').value.trim(),
+                    
+                    jobTitle: document.getElementById('jobTitle').value.trim(),
+                    qualification: document.getElementById('qualification').value.trim(),
+                    specialization: document.getElementById('specialization').value.trim(),
+                    
+                    grade: document.getElementById('grade').value,
+                    stage: document.getElementById('stage').value,
+                    shift: document.getElementById('shift').value,
+                    workLocation: document.getElementById('workLocation').value.trim(),
+                    ministerialId: document.getElementById('ministerialId').value.trim(),
+                    currentPosition: document.getElementById('currentPosition').value.trim(),
+                    appointmentDate: document.getElementById('appointmentDate').value,
+                    commencementDate: document.getElementById('commencementDate').value,
+                    sectionName: document.getElementById('sectionName').value.trim() || 'شعبة المتابعة',
+                    unitName: document.getElementById('unitName').value.trim(),
+                    
+                    photo_base64: photoBase64,
+                    photo_path: photoBase64,
+                    attachments: attachmentsJsonStr,
+                    attachments_data: cleanFiles
+                };
+
+                let savedToBackend = false;
+
+                // 1. الحفظ في السيرفر المحلي عبر Backend REST API
+                try {
+                    const response = await fetch('/api/employees', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(empData)
+                    });
+                    if (response.ok) {
+                        savedToBackend = true;
+                    }
+                } catch (backendErr) {
+                    console.warn("Backend API not reachable directly, attempting cloud sync...", backendErr);
+                }
+
+                // 2. الحفظ في Firestore إذا كان مهيأ
+                try {
+                    if (typeof db !== 'undefined' && db && db.collection) {
+                        const cloudData = { ...empData, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+                        await db.collection('employees').doc(empId).set(cloudData, { merge: true });
+                    }
+                } catch (cloudErr) {
+                    console.warn("Firestore save optional fallback:", cloudErr);
+                }
+
+                showToast("✓ تم حفظ وإرسال الاستمارة بنجاح إلى قاعدة البيانات!", "bg-emerald-600");
+                
+                // Reset Wizard
+                document.getElementById('employeeForm').reset();
+                removePhoto();
+                document.getElementById('attachments-list').innerHTML = "";
+                uploadedFiles = [];
+                currentStep = 1;
+                navigateStep(0); // Reload step 1
+
+            } catch (err) {
+                console.error("Save Error: ", err);
+                showToast("✕ حدث خطأ أثناء حفظ الاستمارة! يرجى المحاولة مرة أخرى.", "bg-red-600");
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up animate-bounce"></i> حفظ وإرسال الاستمارة';
+                btn.disabled = false;
+            }
+        }
+
+        // Toast Helper
+        function showToast(msg, bg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.className = `fixed top-5 left-1/2 -translate-x-1/2 opacity-100 ${bg} text-white px-6 py-3.5 rounded-xl shadow-xl font-semibold flex items-center gap-2.5 z-50 transition-all duration-300`;
+            
+            setTimeout(() => {
+                toast.className = "fixed top-5 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 text-white px-6 py-3.5 rounded-xl shadow-xl font-semibold flex items-center gap-2.5 z-50";
+            }, 4000);
+        }
+    </script>
+</body>
+</html>

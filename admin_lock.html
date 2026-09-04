@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة القفل السري - نظام إدارة الموظفين</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div class="bg-white p-10 rounded-2xl shadow-xl border border-slate-200 text-center max-w-sm w-full">
+        <div class="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <i class="fa-solid fa-shield-halved text-4xl"></i>
+        </div>
+        
+        <h1 class="text-2xl font-bold text-slate-800 mb-2">لوحة القفل المركزية</h1>
+        <p class="text-slate-500 text-sm mb-8">هذه اللوحة خاصة بمدير النظام للتحكم بحالة التطبيق المكتبي (فتح أو قفل).</p>
+        
+        <div id="status-container" class="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-3">
+            <i class="fa-solid fa-circle-notch fa-spin text-slate-400"></i>
+            <span class="text-slate-600 font-semibold">جاري التحقق من حالة النظام...</span>
+        </div>
+
+        <button id="toggleLockBtn" onclick="toggleAppLock()" class="w-full hidden text-white rounded-xl px-4 py-3 flex items-center justify-center gap-3 font-bold shadow-md transition-all hover:scale-[1.02]">
+            <i id="lock-icon" class="fa-solid fa-lock text-lg"></i>
+            <span id="lock-text"></span>
+        </button>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none transition-all duration-300 z-[60]">
+        <i id="toast-icon" class="fa-solid fa-circle-check"></i>
+        <span id="toast-message"></span>
+    </div>
+
+    <script>
+        // ==============================
+        // CONFIGURATION
+        // ==============================
+        const firebaseConfig = {
+          apiKey: "AIzaSyCZJQk8BSH41LWq81BZTMKp_WRo0lssVDc",
+          projectId: "empo-5992a",
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        window.appIsLocked = false;
+        const lockBtn = document.getElementById('toggleLockBtn');
+        const lockIcon = document.getElementById('lock-icon');
+        const lockText = document.getElementById('lock-text');
+        const statusContainer = document.getElementById('status-container');
+
+        // Listen to Settings document
+        db.collection('settings').doc('system_status').onSnapshot((doc) => {
+            statusContainer.classList.add('hidden');
+            lockBtn.classList.remove('hidden');
+
+            if (doc.exists && doc.data().is_locked === true) {
+                // Currently locked -> Show Unlock option
+                lockBtn.className = "w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl px-4 py-3 flex items-center justify-center gap-3 font-bold shadow-md transition-all hover:scale-[1.02]";
+                lockIcon.className = "fa-solid fa-unlock";
+                lockText.innerText = "فتح التطبيق المكتبي الآن";
+                window.appIsLocked = true;
+            } else {
+                // Currently unlocked -> Show Lock option
+                lockBtn.className = "w-full bg-rose-500 hover:bg-rose-600 text-white rounded-xl px-4 py-3 flex items-center justify-center gap-3 font-bold shadow-md transition-all hover:scale-[1.02]";
+                lockIcon.className = "fa-solid fa-lock";
+                lockText.innerText = "قفل التطبيق المكتبي الآن";
+                window.appIsLocked = false;
+            }
+        }, (err) => {
+            console.error("Error syncing app settings:", err);
+            statusContainer.innerHTML = '<span class="text-rose-500 font-bold">خطأ في الاتصال بالسحابة</span>';
+        });
+
+        async function toggleAppLock() {
+            const newState = !window.appIsLocked;
+            const confirmMsg = newState 
+                ? "هل أنت متأكد من قفل التطبيق المكتبي؟ سيتم إغلاقه فوراً عند جميع المستخدمين!" 
+                : "هل أنت متأكد من فتح التطبيق المكتبي ليتمكن الجميع من استخدامه؟";
+                
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                // Ensure document exists by using set with merge
+                await db.collection('settings').doc('system_status').set({
+                    is_locked: newState
+                }, { merge: true });
+                
+                showToast(newState ? "تم قفل النظام بنجاح" : "تم فتح النظام بنجاح");
+            } catch (err) {
+                console.error("Error toggling app lock:", err);
+                alert("حدث خطأ أثناء تغيير حالة القفل.");
+            }
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            t.className = 'fixed top-5 left-1/2 -translate-x-1/2 opacity-100 bg-slate-900 text-white px-6 py-3.5 rounded-xl shadow-xl font-semibold flex items-center gap-2.5 z-[60]';
+            setTimeout(() => {
+                t.classList.replace('opacity-100', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
