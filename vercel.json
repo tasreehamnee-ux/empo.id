@@ -1,14 +1,8 @@
 {
-  "builds": [
-    {
-      "src": "main.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "main.py"
-    }
+  "version": 2,
+  "rewrites": [
+    { "source": "/form", "destination": "/form.html" },
+    { "source": "/admin", "destination": "/admin_lock.html" },
+    { "source": "/api/(.*)", "destination": "/api/index.py" }
   ]
 }

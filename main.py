@@ -30,15 +30,34 @@ import pandas as pd
 
 # مسار مجلد المشروع وقاعدة البيانات
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "security_employees.db")
-BACKUPS_DIR = os.path.join(BASE_DIR, "backups")
+
+# الكشف عما إذا كان الخادم يعمل في بيئة Vercel أو نظام ملفات للقراءة فقط
+def get_writable_db_path():
+    is_serverless = os.environ.get("VERCEL") == "1" or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is not None
+    local_db = os.path.join(BASE_DIR, "security_employees.db")
+    
+    if is_serverless or not os.access(BASE_DIR, os.W_OK):
+        tmp_db = "/tmp/security_employees.db"
+        try:
+            if not os.path.exists(tmp_db) and os.path.exists(local_db):
+                shutil.copy2(local_db, tmp_db)
+        except Exception:
+            pass
+        return tmp_db
+    return local_db
+
+DB_PATH = get_writable_db_path()
+BACKUPS_DIR = "/tmp/backups" if DB_PATH.startswith("/tmp") else os.path.join(BASE_DIR, "backups")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-os.makedirs(BACKUPS_DIR, exist_ok=True)
-os.makedirs(ASSETS_DIR, exist_ok=True)
+
+try:
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+except Exception:
+    pass
 
 app = FastAPI(
     title="بوابة التصاريح الأمنية - نظام إدارة الموظفين API",
-    description="واجهات برمجية متكاملة لربط استمارة التسجيل ولوحة المتابعة والمطابقة بقاعدة بيانات SQLite المحلية",
+    description="واجهات برمجية متكاملة لربط استمارة التسجيل ولوحة المتابعة والمطابقة بقاعدة بيانات SQLite المحلية والسحابية",
     version="2.0.0"
 )
 
@@ -173,12 +192,17 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM users;")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'مدير النظام');")
-        cursor.execute("INSERT INTO users (username, password, role) VALUES ('user1', '123456', 'مدخل بيانات');")
+    try:
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
 
-    conn.commit()
-    conn.close()
-
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"⚠️ تحذير: تعذر تهيئة قاعدة البيانات المحلية: {e}")
 
 # ==========================================================
 # نماذج البيانات (Pydantic Models)
