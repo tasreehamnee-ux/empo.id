@@ -302,90 +302,90 @@
             if (totalCountEl) totalCountEl.innerText = allEmployees.length;
         }
 
-        // ======= مزامنة فورية مع Backend API و Firestore =======
-        let isUsingBackend = false;
+        // ======= مزامنة البيانات وتحديث شارة الاتصال =======
+        let localEmployees = [];
+        let firestoreEmployees = [];
+
+        function mergeAndRenderEmployees() {
+            // دمج الموظفين مع منع التكرار بناء على id أو firestoreId
+            const empMap = new Map();
+            
+            // أولاً: موظفي السحابة (Firestore)
+            firestoreEmployees.forEach(emp => {
+                const key = String(emp.id || emp.firestoreId).trim();
+                if (key) empMap.set(key, emp);
+            });
+
+            // ثانياً: موظفي السيرفر المحلي (إن وجد)
+            localEmployees.forEach(emp => {
+                const key = String(emp.id || emp.firestoreId).trim();
+                if (key) empMap.set(key, emp);
+            });
+
+            allEmployees = Array.from(empMap.values());
+            updateCombinedTotal();
+            filterEmployees();
+
+            // تحديث شارة الوقت
+            const now = new Date().toLocaleTimeString('ar-IQ');
+            const badge = document.getElementById('lastUpdateBadge');
+            if (badge) badge.innerText = ' آخر مزامنة: ' + now;
+
+            const syncBadge = document.getElementById('sync-badge');
+            if (syncBadge) {
+                syncBadge.innerHTML = '<i class="fa-solid fa-circle text-emerald-500 text-xs animate-pulse"></i> متصل';
+                syncBadge.className = 'bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5';
+            }
+        }
 
         async function fetchEmployeesFromBackend() {
             try {
                 const res = await fetch('/api/employees');
                 if (res.ok) {
                     const data = await res.json();
-                    allEmployees = data;
-                    alertThreshold = CONFIG_THRESHOLD;
-                    const deptBadge = document.getElementById('dept-count-badge');
-                    if (deptBadge) deptBadge.innerText = data.length;
-                    updateCombinedTotal();
-
-                    // تحديث شارة الوقت
-                    const now = new Date().toLocaleTimeString('ar-IQ');
-                    const badge = document.getElementById('lastUpdateBadge');
-                    if (badge) badge.innerText = ' آخر مزامنة: ' + now;
-
-                    const syncBadge = document.getElementById('sync-badge');
-                    if (syncBadge) {
-                        syncBadge.innerHTML = '<i class="fa-solid fa-circle text-emerald-500 text-xs animate-pulse"></i> متصل بالسيرفر المحلي';
-                        syncBadge.className = 'bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5';
+                    if (Array.isArray(data) && data.length > 0) {
+                        localEmployees = data;
+                        mergeAndRenderEmployees();
                     }
-
-                    filterEmployees();
-                    isUsingBackend = true;
-                    return true;
                 }
-            } catch (err) {
-                // Not using backend or server down
-            }
-            return false;
+            } catch (err) {}
         }
 
-        async function startRealtimeSync() {
+        function startRealtimeSync() {
             const syncBadge = document.getElementById('sync-badge');
             if (syncBadge) {
                 syncBadge.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-500"></i> جاري الاتصال...';
             }
 
-            // 1. محاولة الجلب الأولى من الباك اند المحلي
-            const backendOk = await fetchEmployeesFromBackend();
-
-            // 2. تحديث دوري من الباك اند كل 4 ثوانٍ
-            setInterval(() => {
-                fetchEmployeesFromBackend();
-            }, 4000);
-
-            // 3. مزامنة Firestore كاحتياطي إن لم يكن الباك اند متاحاً أو للتوافق السحابي
+            // 1. مزامنة فورية دائمة مع Firestore لجلب كافة بيانات الموظفين
             try {
                 if (typeof db !== 'undefined' && db && db.collection) {
                     unsubscribeListener = db.collection('employees')
                         .onSnapshot((snapshot) => {
-                            if (!isUsingBackend) {
-                                const employees = [];
-                                snapshot.forEach(doc => {
-                                    employees.push({ firestoreId: doc.id, ...doc.data() });
-                                });
+                            const employees = [];
+                            snapshot.forEach(doc => {
+                                employees.push({ firestoreId: doc.id, id: doc.id, ...doc.data() });
+                            });
 
-                                allEmployees = employees;
-                                alertThreshold = CONFIG_THRESHOLD;
-                                const deptBadge = document.getElementById('dept-count-badge');
-                                if (deptBadge) deptBadge.innerText = employees.length;
-                                updateCombinedTotal();
-
-                                const now = new Date().toLocaleTimeString('ar-IQ');
-                                const badge = document.getElementById('lastUpdateBadge');
-                                if (badge) badge.innerText = ' آخر مزامنة: ' + now;
-
-                                if (syncBadge) {
-                                    syncBadge.innerHTML = '<i class="fa-solid fa-circle text-emerald-500 text-xs animate-pulse"></i> متصل سحابياً';
-                                    syncBadge.className = 'bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5';
-                                }
-
-                                filterEmployees();
-                            }
+                            firestoreEmployees = employees;
+                            mergeAndRenderEmployees();
                         }, (error) => {
                             console.warn('Firestore listener error:', error);
+                            // محاولة جلب من الباك اند كاحتياطي
+                            fetchEmployeesFromBackend();
                         });
+                } else {
+                    fetchEmployeesFromBackend();
                 }
             } catch (e) {
-                console.warn("Firestore not active:", e);
+                console.warn("Firestore init error:", e);
+                fetchEmployeesFromBackend();
             }
+
+            // 2. تحديث دوري من الباك اند المحلي أيضاً
+            setInterval(() => {
+                fetchEmployeesFromBackend();
+            }, 5000);
         }
 
         let unsubscribeUsers = null;
