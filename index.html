@@ -197,7 +197,7 @@
                 <thead>
                     <tr class="text-slate-600 font-bold border-b border-slate-200 bg-slate-50/70 text-xs">
                         <th class="px-4 py-3.5">ت</th>
-                        <th class="px-4 py-3.5">رقم الهوية</th>
+                        <th class="px-4 py-3.5">الرقم الوظيفي</th>
                         <th class="px-4 py-3.5">اسم الموظف</th>
                         <th class="px-4 py-3.5">العنوان الوظيفي</th>
                         <th class="px-4 py-3.5">الدرجة/المرحلة</th>
@@ -542,7 +542,7 @@
                             <button onclick="openEmployeeDetails('${emp.id}')" class="bg-slate-50 hover:bg-blue-50 text-blue-600 p-2 rounded-lg border border-slate-200 active:scale-95 transition-all" title="التفاصيل">
                                 <i class="fa-regular fa-eye text-xs"></i>
                             </button>
-                            <button onclick="deleteEmployee('${emp.firestoreId || emp.id}')" class="bg-slate-50 hover:bg-red-50 text-red-600 p-2 rounded-lg border border-slate-200 active:scale-95 transition-all" title="حذف الموظف">
+                            <button onclick="deleteEmployee('${emp.firestoreId || emp.id}', '${emp.id || emp.firestoreId}')" class="bg-slate-50 hover:bg-red-50 text-red-600 p-2 rounded-lg border border-slate-200 active:scale-95 transition-all" title="حذف الموظف">
                                 <i class="fa-regular fa-trash-can text-xs"></i>
                             </button>
                         </div>
@@ -738,36 +738,67 @@
             if (el) el.innerText = timeStr;
         }, 1000);
 
-        async function deleteEmployee(docId) {
-            if (confirm("هل أنت متأكد من رغبتك في حذف هذا الموظف نهائياً؟ لا يمكن التراجع عن هذا الإجراء.")) {
-                let deleted = false;
-                // 1. الحذف من السيرفر المحلي
-                try {
-                    const res = await fetch(`/api/employees/${encodeURIComponent(docId)}`, {
-                        method: 'DELETE'
-                    });
-                    if (res.ok) {
-                        deleted = true;
-                        showToast('تم حذف الموظف بنجاح من قاعدة البيانات المحلية');
-                        await fetchEmployeesFromBackend();
-                    }
-                } catch(e) {
-                    console.warn("Backend API delete error:", e);
-                }
-
-                // 2. الحذف من Firestore إن وجد
-                try {
-                    if (typeof db !== 'undefined' && db && db.collection) {
-                        await db.collection('employees').doc(docId).delete();
-                        if (!deleted) showToast('تم حذف الموظف بنجاح');
-                    }
-                } catch(error) {
-                    if (!deleted) {
-                        console.error('Error deleting employee:', error);
-                        showToast('حدث خطأ أثناء الحذف', 'bg-red-600', 'fa-solid fa-triangle-exclamation text-white');
-                    }
-                }
+        async function deleteEmployee(docId, fallbackId) {
+            if (!confirm("هل أنت متأكد من رغبتك في حذف هذا الموظف نهائياً؟ لا يمكن التراجع عن هذا الإجراء.")) {
+                return;
             }
+
+            const idToDelete = String(docId || fallbackId || '').trim();
+            const altId = String(fallbackId || docId || '').trim();
+
+            // 1. حذف فوري من الذاكرة والواجهة
+            firestoreEmployees = firestoreEmployees.filter(e => {
+                const eid = String(e.id || '').trim();
+                const fid = String(e.firestoreId || '').trim();
+                return eid !== idToDelete && fid !== idToDelete && eid !== altId && fid !== altId;
+            });
+            localEmployees = localEmployees.filter(e => {
+                const eid = String(e.id || '').trim();
+                const fid = String(e.firestoreId || '').trim();
+                return eid !== idToDelete && fid !== idToDelete && eid !== altId && fid !== altId;
+            });
+            allEmployees = allEmployees.filter(e => {
+                const eid = String(e.id || '').trim();
+                const fid = String(e.firestoreId || '').trim();
+                return eid !== idToDelete && fid !== idToDelete && eid !== altId && fid !== altId;
+            });
+            
+            mergeAndRenderEmployees();
+            showToast('✓ تم حذف الموظف بنجاح', 'bg-emerald-600', 'fa-solid fa-circle-check text-white');
+
+            // 2. الحذف من Firestore
+            try {
+                if (typeof db !== 'undefined' && db && db.collection) {
+                    if (idToDelete) {
+                        await db.collection('employees').doc(idToDelete).delete().catch(() => {});
+                    }
+                    if (altId && altId !== idToDelete) {
+                        await db.collection('employees').doc(altId).delete().catch(() => {});
+                    }
+
+                    // البحث عن أي وثائق تطابق رقم الموظف وحذفها
+                    try {
+                        const q1 = await db.collection('employees').where('id', '==', idToDelete).get();
+                        q1.forEach(d => d.ref.delete().catch(() => {}));
+                        if (altId && altId !== idToDelete) {
+                            const q2 = await db.collection('employees').where('id', '==', altId).get();
+                            q2.forEach(d => d.ref.delete().catch(() => {}));
+                        }
+                    } catch(e) {}
+                }
+            } catch(error) {
+                console.error('Error deleting employee from Firestore:', error);
+            }
+
+            // 3. الحذف من السيرفر المحلي (إن وجد)
+            try {
+                if (idToDelete) {
+                    await fetch(`/api/employees/${encodeURIComponent(idToDelete)}`, { method: 'DELETE' });
+                }
+                if (altId && altId !== idToDelete) {
+                    await fetch(`/api/employees/${encodeURIComponent(altId)}`, { method: 'DELETE' });
+                }
+            } catch(e) {}
         }
 
         function previewAttachment(filename, base64data) {
